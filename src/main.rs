@@ -29,15 +29,15 @@ impl FromStr for PairFields {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         // 1,2:3,4
-        let data = s.split(":").collect::<Vec<_>>();
+        let data = s.split(':').collect::<Vec<_>>();
         if data.len() != 2 {
             return Err(anyhow!(format!("bad format: {}", s)));
         }
 
         let xx = data.iter().
              map(|s| {
-                let splitted = s.split(",").collect::<Vec<_>>();
-                if splitted.len() <= 0 {
+                let splitted = s.split(',').collect::<Vec<_>>();
+                if splitted.is_empty() {
                 return Err(anyhow!(format!("bad format: {}", s)));
                 }
                 Ok(splitted.iter().
@@ -92,7 +92,7 @@ fn main() -> Result<()> {
     if let Some(output_fields) = config.output_fields {
         handle_intersection(&s1, &s2, &m1, &m2, &output_fields.0, &output_fields.1)?;
     } else {
-        handle_intersection(&s1, &s2, &m1, &m2, &vec![], &vec![])?;
+        handle_intersection(&s1, &s2, &m1, &m2, &[], &[])?;
     }
 
     Ok(())
@@ -121,7 +121,7 @@ fn handle_difference(s1: &HashSet<String>, s2: &HashSet<String>,
 
     let mut f = BufWriter::new(f);
     // hashset 可以直接 collect 成 Vec<_>
-    s1.difference(&s2).collect::<Vec<_>>().
+    s1.difference(s2).collect::<Vec<_>>().
         iter().
         // for_each(| item | f.write_all(item.as_bytes()).unwrap());
         for_each(| &item | {
@@ -135,14 +135,14 @@ fn handle_difference(s1: &HashSet<String>, s2: &HashSet<String>,
 
 fn handle_intersection(s1: &HashSet<String>, s2: &HashSet<String>,
                        m1: &HashMap<String, Vec<String>>, m2: &HashMap<String, Vec<String>>,
-                       fields1: &Vec<usize>, fields2: &Vec<usize>) -> Result<()> {
+                       fields1: &[usize], fields2: &[usize]) -> Result<()> {
     let f = OpenOptions::new().
         append(true).
         create(true).
         open("intersect.csv")?;
 
     let mut f = BufWriter::new(f);
-    s1.intersection(&s2).collect::<Vec<_>>().
+    s1.intersection(s2).collect::<Vec<_>>().
         iter().
         for_each(| &item | {
             // difference between `iter` and `into_iter`?
@@ -155,10 +155,11 @@ fn handle_intersection(s1: &HashSet<String>, s2: &HashSet<String>,
             // TODO: 不 clone 的话下面一行就会报 'borrow of moved value'
             let mut out = f1.clone();
             if f1.is_empty() {
-                let mut fields1 = m1[item].iter().map(|x| x).collect::<Vec<_>>();
-                let fields2 = m2[item].iter().map(|x| x).collect::<Vec<_>>();
+                let mut fields1 = m1[item].iter().collect::<Vec<_>>();
+                let fields2 = m2[item].iter().collect::<Vec<_>>();
                 fields1.extend(fields2);
-                let tmp = fields1.iter().map(|&x| x).collect::<Vec<_>>();
+                // copied 的用处是把一个 iterator over &T 变成一个 iterator over T
+                let tmp = fields1.iter().copied().collect::<Vec<_>>();
                 out = tmp;
             }
             // 如何写文件
